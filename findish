@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Check if a search term is provided
+if [ -z "$1" ]; then
+    echo "Usage: $0 <filename-pattern>"
+    exit 1
+fi
+
+# Define the search directory (current directory by default)
+SEARCH_DIR=${2:-.}
+
+# Find files matching the pattern
+echo "Searching for files matching '$1' in '$SEARCH_DIR'..."
+FILES=()
+while IFS= read -r file; do
+    FILES+=("$file")
+done < <(find "$SEARCH_DIR" -type f -iname "*$1*" 2>/dev/null)
+
+# If no files found, exit
+if [ ${#FILES[@]} -eq 0 ]; then
+    echo "No matching files found."
+    exit 0
+fi
+
+# Display found files
+echo -e "\nResults are:"
+for file in "${FILES[@]}"; do
+    echo "$file"
+done
+
+# Function to check if two files are identical
+are_files_identical() {
+    cmp -s "$1" "$2"
+}
+
+# Group identical files
+GROUPED_FILES=()  # Holds lists of identical files
+UNIQUE_FILES=()    # Holds unique files
+
+for file in "${FILES[@]}"; do
+    MATCH_FOUND=false
+    for i in "${!GROUPED_FILES[@]}"; do
+        ref_file=${GROUPED_FILES[$i]%% *}  # Get the first file in the group
+        if are_files_identical "$file" "$ref_file"; then
+            GROUPED_FILES[$i]="${GROUPED_FILES[$i]} $file"
+            MATCH_FOUND=true
+            break
+        fi
+    done
+
+    if [ "$MATCH_FOUND" = false ]; then
+        GROUPED_FILES+=("$file")
+        UNIQUE_FILES+=("$file")
+    fi
+done
+
+# Display grouped files
+echo -e "\nIdentical files:"
+for group in "${GROUPED_FILES[@]}"; do
+    if [[ "$group" == *" "* ]]; then
+        echo "$group are all the same file with different names."
+    fi
+done
+
+# Display unique files
+echo -e "\nUnique files:"
+for file in "${UNIQUE_FILES[@]}"; do
+    if [[ "$file" != *" "* ]]; then
+        echo "$file is unique"
+    fi
+done
