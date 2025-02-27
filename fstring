@@ -1,0 +1,66 @@
+#!/bin/sh
+
+# Function to display usage
+usage() {
+    echo "Usage: $0 <string> [-e extension]"
+    echo "Examples:"
+    echo "  $0 \"SEARCH_STRING\"          # Search all files"
+    echo "  $0 \"SEARCH_STRING\" -e txt  # Search only .txt files"
+    exit 1
+}
+
+# Check if at least one argument (search string) is provided
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+SEARCH_STRING="$1"
+EXTENSION=""
+shift  # Move past the search string
+
+# Parse optional -e flag
+while getopts "e:" opt; do
+    case $opt in
+        e) EXTENSION="$OPTARG";;
+        ?) usage;;
+    esac
+done
+
+# Set the search directory (default is current directory)
+SEARCH_DIR="."
+
+# Determine number of CPU cores and xargs command
+if [ "$(uname)" = "Darwin" ]; then
+    # macOS
+    NPROC=$(sysctl -n hw.ncpu)
+    # Check for gxargs in common Homebrew locations
+    if [ -x "/opt/homebrew/bin/gxargs" ]; then
+        XARGS_CMD="/opt/homebrew/bin/gxargs -0 -P $NPROC"
+    elif [ -x "/usr/local/bin/gxargs" ]; then
+        XARGS_CMD="/usr/local/bin/gxargs -0 -P $NPROC"
+    else
+        XARGS_CMD="/usr/bin/xargs -0"
+        echo "Tip: Install 'findutils' (brew install findutils) for faster parallel execution on macOS" >&2
+    fi
+elif command -v nproc >/dev/null 2>&1; then
+    # Linux
+    NPROC=$(nproc)
+    XARGS_CMD="xargs -0 -P $NPROC"
+elif command -v sysctl >/dev/null 2>&1; then
+    # Other BSD
+    NPROC=$(sysctl -n hw.ncpu)
+    XARGS_CMD="xargs -0"
+else
+    # Fallback
+    NPROC=1
+    XARGS_CMD="xargs -0"
+fi
+
+# Run find and grep based on whether an extension is provided
+if [ -z "$EXTENSION" ]; then
+    # No extension: search all files
+    find "$SEARCH_DIR" -type f -print0 | $XARGS_CMD grep -l "$SEARCH_STRING" 2>/dev/null
+else
+    # Extension provided: search only files with that extension
+    find "$SEARCH_DIR" -type f -name "*.$EXTENSION" -print0 | $XARGS_CMD grep -l "$SEARCH_STRING" 2>/dev/null
+fi
