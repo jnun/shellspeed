@@ -1,0 +1,55 @@
+#!/bin/sh
+# POSIX-compliant shebang, works for both bash and zsh
+
+# Check if a directory is provided, default to current dir if not
+if [ $# -eq 0 ]; then
+    DIR="."
+else
+    DIR="$1"
+fi
+
+# Ensure the directory exists
+if [ ! -d "$DIR" ]; then
+    echo "Error: '$DIR' is not a directory!" >&2
+    exit 1
+fi
+
+echo "Scanning '$DIR' recursively..."
+
+# Count all files (excluding directories themselves)
+TOTAL_FILES=$(find "$DIR" -type f | wc -l)
+echo "Total files found: $TOTAL_FILES"
+
+# Define extensions for text/code files we want to count
+# Using a single string with spaces for POSIX compatibility
+TEXT_EXTENSIONS="py js ts jsx tsx java c cpp h cs go rb php rs sh bash zsh fish ksh json yaml yml toml ini cfg conf xml html css scss sass txt md markdown rst pl pm r swift kt kts lua sql groovy scala"
+
+# Build the find pattern dynamically
+FIND_PATTERN=""
+for ext in $TEXT_EXTENSIONS; do
+    FIND_PATTERN="$FIND_PATTERN -o -name \"*.$ext\""
+done
+# Remove the leading "-o " from the pattern
+FIND_PATTERN="${FIND_PATTERN#*-o }"
+
+# Count lines in text/code files
+echo "Counting lines in code/text files..."
+LINES=$(find "$DIR" -type f \( $FIND_PATTERN \) -exec cat {} + 2>/dev/null | wc -l)
+TEXT_FILES=$(find "$DIR" -type f \( $FIND_PATTERN \) | wc -l)
+
+# Handle case where no text files are found
+if [ "$TEXT_FILES" -eq 0 ]; then
+    echo "No text/code files found!"
+else
+    echo "Found $TEXT_FILES text/code files"
+    echo "Total lines of code/text: $LINES"
+    # Average lines per file
+    AVG_LINES=$((LINES / TEXT_FILES))
+    echo "Average lines per file: $AVG_LINES"
+fi
+
+# Bonus: List top 5 file types by count
+echo "Top 5 file types by count:"
+find "$DIR" -type f -name "*.*" | sed 's/.*\.\([^.]*\)$/\1/' | sort | uniq -c | sort -nr | head -5
+
+echo "Done!"
