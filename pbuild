@@ -152,7 +152,7 @@ EOF
 cat << 'EOF' > ./.vscode/keybindings.json
 [
   {
-    "key": "ctrl+alt+g",
+    "key": "cmd+option+g",
     "command": "workbench.action.tasks.runTask",
     "args": "Generate and Apply"
   }
@@ -164,5 +164,5 @@ echo "  - ./docs/style-guide.md"
 echo "  - ./tasks.js"
 echo "  - ./.vscode/tasks.json"
 echo "  - ./.vscode/keybindings.json"
-echo "Run 'node tasks.js \"<prompt>\" \"<file-path>\"' or use Ctrl+Alt+G in VS Code."
+echo "Run 'node tasks.js \"<prompt>\" \"<file-path>\"' or use Cmd+Option+G (Mac) / Ctrl+Alt+G (Win/Linux) in VS Code."
 echo "Note: Ensure 'axios' is installed (npm i axios) and XAI_API_KEY is set in your environment."
