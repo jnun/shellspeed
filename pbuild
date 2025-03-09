@@ -1,0 +1,168 @@
+#!/bin/bash
+
+# pbuild: Project build script for setting up Next.js dev environments
+# Usage: pbuild -next
+
+# Check for -next flag
+if [ "$1" != "-next" ]; then
+  echo "Usage: pbuild -next"
+  exit 1
+fi
+
+# Check for Next.js structure and offer to proceed anyway
+if [ ! -d "./node_modules" ] && [ ! -f "./package.json" ]; then
+  echo "Error: This directory does not appear to be initialized for a Next.js project."
+  echo "Initiate your Next project and run from the root of your Next app."
+  while true; do
+    read -p "Run anyway: Yes/No " answer
+    case "$answer" in
+      [Yy][Ee][Ss]|[Yy]*)
+        echo "Proceeding anyway—placing files without Next.js initialization."
+        break
+        ;;
+      [Nn][Oo]|[Nn]*)
+        echo "Aborting—please initialize a Next.js project first."
+        exit 1
+        ;;
+      *)
+        echo "Please answer Yes or No."
+        ;;
+    esac
+  done
+fi
+
+# Create directories if they don’t exist
+mkdir -p ./docs ./.vscode
+
+# Write style-guide.md
+cat << 'EOF' > ./docs/style-guide.md
+# Style Guide for [jnun/prm] - Next.js Projects
+
+## Purpose
+- Ensure clean, organized code with clear, logical sections.
+- Optimize for xAI API integration (e.g., Cline + custom scripts) to automate workflows.
+
+## Formatting
+- Indentation: 2 spaces (mapped to tab key via keyboard remap).
+- Line Breaks: Single blank line between logical blocks (imports, functions, components).
+- Max Line Length: 100 characters, break sensibly at commas or operators.
+
+## File Naming
+- Pages/Routes: `kebab-case` (e.g., `src/app/login/page.tsx`, `src/app/dashboard-data/page.tsx`).
+- Components: PascalCase (e.g., `src/components/LoginButton.tsx`).
+- Utilities: `kebab-case` (e.g., `src/lib/auth-utils.ts`).
+
+## Project Structure
+- Key Directories:
+  - `/src/app/` - App Router pages and routes (e.g., `src/app/[feature]/page.tsx`, `src/app/api/trpc/[trpc]/route.ts`).
+  - `/src/components/` - Reusable UI components (e.g., `src/components/layout/Header.tsx`).
+  - `/src/lib/` - Helpers and utilities (e.g., `src/lib/db/index.ts`).
+  - `/src/server/` - Server-side logic (e.g., `src/server/api/routers/user.ts`).
+  - `/src/types/` - TypeScript definitions (e.g., `src/types/user.d.ts`).
+  - `/src/utils/` - General utilities (e.g., `src/utils/format-date.ts`).
+- Exclusions: Ignore `/secrets/`, `/private/`, `/node_modules/`, `/prisma/migrations/`, `*.log` unless specified.
+- Feature Grouping: Colocate related files (e.g., `src/app/auth/[signin, signout, error]`).
+
+## Code Organization
+- Components:
+  - One per file, export default.
+  - Props typed with `interface` (e.g., `interface Props { title: string }`).
+  - Prefer Server Components unless client-side logic requires `"use client"` (e.g., `export default async function Page()`).
+- Functions:
+  - Arrow functions by default (e.g., `const fetchData = async () => {...}`).
+  - Named exports for utilities (e.g., `export const getUser = async () => {...}`).
+- Imports:
+  - Grouped and ordered: Next.js/React first, external libs, then local files.
+  - Alphabetical within groups (e.g., `import Link from 'next/link'; import { useState } from 'react'; import { getData } from '@/lib/db';`).
+  - Use path aliases (e.g., `@/components/`, `@/lib/`) via `tsconfig.json` or `jsconfig.json`.
+
+## Best Practices
+- TypeScript: Mandatory—strict mode enabled (tsconfig.json: "strict": true). Prefer interface over type for props/objects; use utility types (e.g., Pick, omit) for DRY code; export types from src/types/ for reuse (e.g., src/types/user.d.ts).
+- Server Components: Default for new pages/routes (e.g., `src/app/dashboard/page.tsx` uses `async` fetches). Use `"use client"` only for interactive features requiring hooks (e.g., `useState`, `useEffect`) or browser APIs—keep these in `src/components/`, not `src/app/`.
+- Error Handling: Wrap async calls in try/catch (e.g., `try { await fetchData() } catch (e) {...}`).
+- Comments: Sparse, explain “why” not “what” (e.g., `// Use Server Component for SSR perf`).
+
+## xAI API Integration
+- Scope: Feed xAI only `/src/app/`, `/src/components/`, `/src/lib/`, `/src/server/`, `/src/types/`, `/src/utils/`—filter via `.grokignore` or VS Code workspace.
+- Prompts: Include this guide (e.g., “Follow `/docs/style-guide.md`”) for consistent output.
+- Automation: Use scripts (e.g., `tasks.js`) to write generated code to target paths (e.g., `src/app/[feature]/page.tsx`).
+EOF
+
+# Write tasks.js
+cat << 'EOF' > ./tasks.js
+const fs = require('fs').promises;
+const path = require('path');
+const axios = require('axios');
+
+async function generateAndWrite(prompt, filePath) {
+  const styleGuide = await fs.readFile('docs/style-guide.md', 'utf8');
+  const fullPrompt = `${styleGuide}\n\n${prompt}`;
+  const res = await axios.post('https://api.x.ai/v1/completions', {
+    prompt: fullPrompt,
+    model: 'grok-2-1212',
+    max_tokens: 1000
+  }, {
+    headers: { 'Authorization': 'Bearer ' + (process.env.XAI_API_KEY || 'YOUR_XAI_API_KEY') }
+  });
+  const code = res.data.choices[0].text.trim();
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, code, 'utf8');
+  console.log(`Wrote to ${filePath}`);
+}
+
+if (process.argv.length < 4) {
+  console.log('Usage: node tasks.js "<prompt>" "<file-path>"');
+  process.exit(1);
+}
+
+const [,, prompt, filePath] = process.argv;
+generateAndWrite(prompt, filePath).catch(console.error);
+EOF
+
+# Write .vscode/tasks.json
+cat << 'EOF' > ./.vscode/tasks.json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Generate and Apply",
+      "type": "shell",
+      "command": "node tasks.js \"${input:prompt}\" \"${input:filePath}\"",
+      "problemMatcher": [],
+      "presentation": { "echo": true, "reveal": "always" }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "prompt",
+      "type": "promptString",
+      "description": "What should Grok generate?"
+    },
+    {
+      "id": "filePath",
+      "type": "promptString",
+      "description": "Where to save it? (e.g., src/app/dashboard/page.tsx)",
+      "default": "src/app/"
+    }
+  ]
+}
+EOF
+
+# Write .vscode/keybindings.json
+cat << 'EOF' > ./.vscode/keybindings.json
+[
+  {
+    "key": "ctrl+alt+g",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Generate and Apply"
+  }
+]
+EOF
+
+echo "Setup complete! Files placed:"
+echo "  - ./docs/style-guide.md"
+echo "  - ./tasks.js"
+echo "  - ./.vscode/tasks.json"
+echo "  - ./.vscode/keybindings.json"
+echo "Run 'node tasks.js \"<prompt>\" \"<file-path>\"' or use Ctrl+Alt+G in VS Code."
+echo "Note: Ensure 'axios' is installed (npm i axios) and XAI_API_KEY is set in your environment."
