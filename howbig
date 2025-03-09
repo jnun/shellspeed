@@ -1,11 +1,25 @@
 #!/bin/sh
-# POSIX-compliant shebang, works for both bash and zsh
 
-# Check if a directory is provided, default to current dir if not
-if [ $# -eq 0 ]; then
+# Default verbose mode to off
+VERBOSE=0
+
+# Check for -v flag
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -v)
+            VERBOSE=1
+            shift
+            ;;
+        *)
+            DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+# If no directory provided, default to current dir
+if [ -z "$DIR" ]; then
     DIR="."
-else
-    DIR="$1"
 fi
 
 # Ensure the directory exists
@@ -21,31 +35,42 @@ TOTAL_FILES=$(find "$DIR" -type f | wc -l)
 echo "Total files found: $TOTAL_FILES"
 
 # Define extensions for text/code files we want to count
-# Using a single string with spaces for POSIX compatibility
 TEXT_EXTENSIONS="py js ts jsx tsx java c cpp h cs go rb php rs sh bash zsh fish ksh json yaml yml toml ini cfg conf xml html css scss sass txt md markdown rst pl pm r swift kt kts lua sql groovy scala"
 
-# Build the find pattern dynamically
+# Build the find pattern explicitly
 FIND_PATTERN=""
 for ext in $TEXT_EXTENSIONS; do
-    FIND_PATTERN="$FIND_PATTERN -o -name \"*.$ext\""
+    if [ -z "$FIND_PATTERN" ]; then
+        FIND_PATTERN="-name \"*.$ext\""
+    else
+        FIND_PATTERN="$FIND_PATTERN -o -name \"*.$ext\""
+    fi
 done
-# Remove the leading "-o " from the pattern
-FIND_PATTERN="${FIND_PATTERN#*-o }"
 
-# Count lines in text/code files
+# Debug: Show the pattern if verbose
+if [ "$VERBOSE" -eq 1 ]; then
+    echo "Debug: FIND_PATTERN=$FIND_PATTERN"
+fi
+
+# Count text/code files and lines
 echo "Counting lines in code/text files..."
-LINES=$(find "$DIR" -type f \( $FIND_PATTERN \) -exec cat {} + 2>/dev/null | wc -l)
-TEXT_FILES=$(find "$DIR" -type f \( $FIND_PATTERN \) | wc -l)
+TEXT_FILES=$(eval "find \"$DIR\" -type f \( $FIND_PATTERN \)" | wc -l)
+echo "Found $TEXT_FILES text/code files"
 
-# Handle case where no text files are found
-if [ "$TEXT_FILES" -eq 0 ]; then
-    echo "No text/code files found!"
-else
-    echo "Found $TEXT_FILES text/code files"
+# Debug: List matched files if verbose
+if [ "$VERBOSE" -eq 1 ]; then
+    echo "Debug: Files matched:"
+    eval "find \"$DIR\" -type f \( $FIND_PATTERN \)"
+fi
+
+# Count lines if files are found
+if [ "$TEXT_FILES" -gt 0 ]; then
+    LINES=$(eval "find \"$DIR\" -type f \( $FIND_PATTERN \) -exec cat {} +" 2>/dev/null | wc -l)
     echo "Total lines of code/text: $LINES"
-    # Average lines per file
     AVG_LINES=$((LINES / TEXT_FILES))
     echo "Average lines per file: $AVG_LINES"
+else
+    echo "No text/code files found!"
 fi
 
 # Bonus: List top 5 file types by count
